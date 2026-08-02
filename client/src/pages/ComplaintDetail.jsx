@@ -83,8 +83,8 @@ export default function ComplaintDetailPage() {
         {coords && (
           <div style={{ height:'200px', borderBottom:'1px solid var(--color-border)' }}>
             <MapContainer center={[coords[1], coords[0]]} zoom={16} style={{ height:'100%', width:'100%' }} scrollWheelZoom={false}>
-              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-              <CircleMarker center={[coords[1], coords[0]]} radius={10} fillColor={STATUS_COLORS[c.status]} fillOpacity={0.9} stroke weight={2} color="#0B0B0D" />
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+              <CircleMarker center={[coords[1], coords[0]]} radius={10} fillColor={STATUS_COLORS[c.status]} fillOpacity={0.95} stroke weight={2.5} color="#FFFFFF" />
             </MapContainer>
           </div>
         )}

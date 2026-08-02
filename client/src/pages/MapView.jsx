@@ -71,9 +71,9 @@ export default function MapViewPage() {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'400px', color:'var(--color-text-muted)' }}><Loader size={24} className="animate-spin" /></div>
         ) : view === 'map' ? (
           <MapContainer center={center} zoom={12} style={{ height:'100%', minHeight:'calc(100vh - 120px)', width:'100%' }}>
-            <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+            <TileLayer attribution='&copy; OpenStreetMap &copy; CARTO' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
             {filtered.map(c => (
-              <CircleMarker key={c._id} center={[c.location.coordinates[1], c.location.coordinates[0]]} radius={8} fillColor={STATUS_COLORS[c.status]||'#5B7DB1'} fillOpacity={0.85} stroke weight={1.5} color="#0B0B0D">
+              <CircleMarker key={c._id} center={[c.location.coordinates[1], c.location.coordinates[0]]} radius={8} fillColor={STATUS_COLORS[c.status]||'#5B7DB1'} fillOpacity={0.95} stroke weight={2} color="#FFFFFF">
                 <Popup><div style={{ fontFamily:'var(--font-sans)', minWidth:'160px' }}>
                   <div style={{ fontFamily:'var(--font-mono)', fontSize:'11px', color:'#8B8D93', marginBottom:'4px' }}>{c.ticketId||c._id?.slice(-6)}</div>
                   <div style={{ fontWeight:600, marginBottom:'6px' }}>{CATEGORY_LABELS[c.category]}</div>

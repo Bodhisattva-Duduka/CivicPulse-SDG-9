@@ -150,19 +150,19 @@ export default function LandingPage() {
             scrollWheelZoom={false}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org">OpenStreetMap</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             />
             {complaints.map((c) => (
               <CircleMarker
                 key={c._id}
                 center={[c.location.coordinates[1], c.location.coordinates[0]]}
-                radius={6}
+                radius={7}
                 fillColor={STATUS_COLORS[c.status] || '#5B7DB1'}
-                fillOpacity={0.8}
+                fillOpacity={0.95}
                 stroke={true}
-                weight={1}
-                color="#0B0B0D"
+                weight={2}
+                color="#FFFFFF"
               >
                 <Popup>
                   <div style={{ fontFamily: 'var(--font-sans)' }}>

@@ -106,14 +106,14 @@ export default function DepartmentDashboard() {
         {/* Map */}
         <div style={{ flex:1, position:'relative' }}>
           <MapContainer center={center} zoom={12} style={{ height:'100%', width:'100%' }}>
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+            <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
             <FlyTo center={flyCenter} />
             {complaints.map(c => {
               const coords = c.location?.coordinates;
               if (!coords) return null;
               const isSelected = c._id === selectedId;
               return (
-                <CircleMarker key={c._id} center={[coords[1], coords[0]]} radius={isSelected ? 12 : 7} fillColor={STATUS_COLORS[c.status]||'#5B7DB1'} fillOpacity={isSelected ? 1 : 0.8} stroke weight={isSelected ? 3 : 1.5} color={isSelected ? '#F2F1ED' : '#0B0B0D'}
+                <CircleMarker key={c._id} center={[coords[1], coords[0]]} radius={isSelected ? 12 : 8} fillColor={STATUS_COLORS[c.status]||'#5B7DB1'} fillOpacity={isSelected ? 1 : 0.95} stroke weight={isSelected ? 3 : 2} color={isSelected ? '#FF5A1F' : '#FFFFFF'}
                   eventHandlers={{ click: () => selectComplaint(c) }}>
                   <Popup><div style={{ fontFamily:'var(--font-sans)', minWidth:'140px' }}>
                     <div style={{ fontFamily:'var(--font-mono)', fontSize:'11px', color:'#8B8D93' }}>{c.ticketId||c._id?.slice(-6)}</div>
