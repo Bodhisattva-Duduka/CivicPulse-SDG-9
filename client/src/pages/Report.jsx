@@ -1,9 +1,42 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, MapPin, Loader, CheckCircle, AlertCircle, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Camera, MapPin, Loader, CheckCircle, AlertCircle, Upload, X, Image as ImageIcon, Navigation } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
+import exifr from 'exifr';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import api from '../lib/api';
 import { CATEGORY_LABELS } from '../lib/constants';
+
+// Fix Leaflet marker default icon URL issue
+const defaultIcon = L.icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+});
+
+function MapClickHandler({ onLocationChange }) {
+  useMapEvents({
+    click(e) {
+      onLocationChange({ lat: e.latlng.lat, lng: e.latlng.lng });
+    }
+  });
+  return null;
+}
+
+function RecenterMap({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center?.lat && center?.lng) {
+      map.setView([center.lat, center.lng], 16);
+    }
+  }, [center, map]);
+  return null;
+}
 
 export default function ReportPage() {
   const navigate = useNavigate();
@@ -16,6 +49,7 @@ export default function ReportPage() {
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState(null);
   const [location, setLocation] = useState(null);
+  const [locationSource, setLocationSource] = useState('');
   const [locationError, setLocationError] = useState('');
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -27,6 +61,32 @@ export default function ReportPage() {
   // Cleanup webcam stream on unmount
   useEffect(() => {
     return () => stopCamera();
+  }, []);
+
+  const requestBrowserLocation = (force = false) => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser. Click on the map to set location.');
+      return;
+    }
+
+    setLocationError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setLocation(coords);
+        setLocationSource(force ? 'Browser GPS (refreshed)' : 'Browser GPS');
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+        setLocationError('Unable to get GPS automatically. Tap anywhere on the map to place your pin manually.');
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  };
+
+  // Get browser location on mount
+  useEffect(() => {
+    requestBrowserLocation(false);
   }, []);
 
   const stopCamera = () => {
@@ -46,7 +106,6 @@ export default function ReportPage() {
       });
       streamRef.current = stream;
       setStep('camera');
-      // Wait for video element to mount, then attach stream
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -78,55 +137,79 @@ export default function ReportPage() {
       if (!blob) { setError('Failed to capture photo'); return; }
       try {
         const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
-        const compressed = await imageCompression(file, {
-          maxSizeMB: 1,
-          maxWidthOrHeight: 1920,
-          useWebWorker: true
-        });
-        setPhoto(compressed);
-        setPreview(URL.createObjectURL(compressed));
+        let processedPhoto = file;
+        try {
+          processedPhoto = await imageCompression(file, {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: false,
+            preserveExif: true
+          });
+        } catch (cErr) {
+          console.warn('Compression bypassed for camera capture:', cErr);
+        }
+        setPhoto(processedPhoto);
+        setPreview(URL.createObjectURL(processedPhoto));
+
+        if (!location) {
+          requestBrowserLocation(false);
+        }
         setStep('location');
       } catch (err) {
+        console.error('Camera capture error:', err);
         setError('Failed to process captured photo.');
       }
     }, 'image/jpeg', 0.92);
   };
-
-  // Get location on mount
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        },
-        (err) => {
-          setLocationError('Unable to get location. Please enable GPS and refresh.');
-          console.error('Geolocation error:', err);
-        },
-        { enableHighAccuracy: true, timeout: 15000 }
-      );
-    } else {
-      setLocationError('Geolocation is not supported by your browser.');
-    }
-  }, []);
 
   const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      // Compress image before upload
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true
-      });
+      setError('');
 
-      setPhoto(compressed);
-      setPreview(URL.createObjectURL(compressed));
+      // Step A: Extract EXIF GPS metadata from raw image file if available
+      let extractedGps = null;
+      try {
+        const gps = await exifr.gps(file);
+        if (gps && typeof gps.latitude === 'number' && typeof gps.longitude === 'number') {
+          extractedGps = { lat: gps.latitude, lng: gps.longitude };
+        }
+      } catch (exifErr) {
+        console.log('No EXIF GPS metadata found in photo file:', exifErr);
+      }
+
+      if (extractedGps) {
+        setLocation(extractedGps);
+        setLocationSource('Photo EXIF metadata');
+      } else if (!location) {
+        requestBrowserLocation(false);
+      }
+
+      // Step B: Compress image if possible, or fall back to original file
+      let processedPhoto = file;
+      try {
+        processedPhoto = await imageCompression(file, {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1920,
+          useWebWorker: false,
+          preserveExif: true
+        });
+      } catch (compressErr) {
+        console.warn('Image compression bypassed, using original photo:', compressErr);
+        processedPhoto = file;
+      }
+
+      setPhoto(processedPhoto);
+      setPreview(URL.createObjectURL(processedPhoto));
       setStep('location');
     } catch (err) {
-      setError('Failed to process image. Try a different photo.');
+      console.error('Photo select error:', err);
+      // Fallback: set photo directly so user is never blocked
+      setPhoto(file);
+      setPreview(URL.createObjectURL(file));
+      setStep('location');
     }
   };
 
@@ -452,27 +535,87 @@ export default function ReportPage() {
               </button>
             </div>
 
-            {/* Location status */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '12px',
-              backgroundColor: 'var(--color-bg-card)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              marginBottom: '16px'
-            }}>
-              <MapPin size={16} color={location ? 'var(--color-status-resolved)' : 'var(--color-status-overdue)'} />
-              {location ? (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                  {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-                </span>
-              ) : (
-                <span style={{ fontSize: '13px', color: locationError ? 'var(--color-status-overdue)' : 'var(--color-text-muted)' }}>
-                  {locationError || 'Acquiring GPS location...'}
-                </span>
-              )}
+            {/* Location Header & Controls */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 14px',
+                backgroundColor: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <MapPin size={18} color={location ? 'var(--color-status-resolved)' : 'var(--color-status-overdue)'} />
+                  <div>
+                    {location ? (
+                      <>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 600 }}>
+                          {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                          Source: {locationSource || 'Browser GPS'} (Click map to move pin)
+                        </div>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: '13px', color: locationError ? 'var(--color-status-overdue)' : 'var(--color-text-muted)' }}>
+                        {locationError || 'Acquiring location... Click map to place pin manually.'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => requestBrowserLocation(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '6px 10px', fontSize: '11px', borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-elevated)',
+                    color: 'var(--color-text-primary)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    fontWeight: 500
+                  }}
+                >
+                  <Navigation size={12} />
+                  Re-detect GPS
+                </button>
+              </div>
+
+              {/* Interactive Map Picker */}
+              <div style={{ height: '220px', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                <MapContainer
+                  center={location ? [location.lat, location.lng] : [17.385, 78.4867]}
+                  zoom={15}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                  <MapClickHandler onLocationChange={(newLoc) => {
+                    setLocation(newLoc);
+                    setLocationSource('Manually pinned on map');
+                  }} />
+                  {location && (
+                    <>
+                      <RecenterMap center={location} />
+                      <Marker
+                        position={[location.lat, location.lng]}
+                        icon={defaultIcon}
+                        draggable={true}
+                        eventHandlers={{
+                          dragend(e) {
+                            const marker = e.target;
+                            const pos = marker.getLatLng();
+                            setLocation({ lat: pos.lat, lng: pos.lng });
+                            setLocationSource('Manually pinned on map');
+                          }
+                        }}
+                      />
+                    </>
+                  )}
+                </MapContainer>
+              </div>
+              <p style={{ fontSize: '11px', color: 'var(--color-text-dimmed)', margin: '2px 0 0', textAlign: 'center' }}>
+                💡 Click anywhere on the map or drag the marker to set your exact issue location.
+              </p>
             </div>
 
             {/* Description */}

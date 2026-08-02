@@ -1,11 +1,28 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { MapPin, Camera, Shield, ArrowRight, Zap, Users, Activity } from 'lucide-react';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import api from '../lib/api';
 import { isAuthenticated } from '../lib/auth';
 import { CATEGORY_LABELS, STATUS_COLORS } from '../lib/constants';
+
+function AutoFitBounds({ items }) {
+  const map = useMap();
+  useEffect(() => {
+    if (items && items.length > 0) {
+      const validPoints = items
+        .map(c => c.location?.coordinates)
+        .filter(coords => Array.isArray(coords) && coords.length === 2);
+      if (validPoints.length > 0) {
+        const bounds = L.latLngBounds(validPoints.map(coords => [coords[1], coords[0]]));
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      }
+    }
+  }, [items, map]);
+  return null;
+}
 
 const FEATURES = [
   {
@@ -153,6 +170,7 @@ export default function LandingPage() {
               attribution='&copy; <a href="https://www.openstreetmap.org">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
               url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             />
+            <AutoFitBounds items={complaints} />
             {complaints.map((c) => (
               <CircleMarker
                 key={c._id}

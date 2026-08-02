@@ -73,141 +73,140 @@ const seed = async () => {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/civicpulse');
     console.log('Connected to MongoDB');
 
-    // Clear existing data
-    await User.deleteMany({});
-    await Complaint.deleteMany({});
-    console.log('Cleared existing data');
+    const shouldReset = process.argv.includes('--reset');
 
-    // Create accounts
-    const users = [];
-    for (const account of SEED_ACCOUNTS) {
-      const passwordHash = await bcrypt.hash(account.password, SALT_ROUNDS);
-      const user = await User.create({
-        name: account.name,
-        email: account.email,
-        passwordHash,
-        role: account.role,
-        department: account.department
-      });
-      users.push(user);
-      console.log(`  Created ${account.role} account: ${account.email}`);
+    if (shouldReset) {
+      await Complaint.deleteMany({});
+      console.log('Cleared complaints dataset (--reset flag provided)');
     }
 
-    // Create a couple citizen accounts for demo
+    // Create or update default department/admin seed accounts without deleting existing user signups
+    for (const account of SEED_ACCOUNTS) {
+      const existing = await User.findOne({ email: account.email });
+      if (!existing) {
+        const passwordHash = await bcrypt.hash(account.password, SALT_ROUNDS);
+        await User.create({
+          name: account.name,
+          email: account.email,
+          passwordHash,
+          role: account.role,
+          department: account.department
+        });
+        console.log(`  Created ${account.role} account: ${account.email}`);
+      } else {
+        console.log(`  Preserved existing account: ${account.email}`);
+      }
+    }
+
+    // Ensure demo citizen accounts exist if not already created
     const citizenPassHash = await bcrypt.hash('Password123!', SALT_ROUNDS);
-    const citizen1 = await User.create({
-      name: 'Rahul Kumar',
-      email: 'citizen1@civicpulse.demo',
-      passwordHash: citizenPassHash,
-      role: 'citizen'
-    });
-    const citizen2 = await User.create({
-      name: 'Priya Sharma',
-      email: 'citizen2@civicpulse.demo',
-      passwordHash: citizenPassHash,
-      role: 'citizen'
-    });
-    console.log('  Created 2 citizen accounts');
+    let citizen1 = await User.findOne({ email: 'citizen1@civicpulse.demo' });
+    if (!citizen1) {
+      citizen1 = await User.create({
+        name: 'Rahul Kumar',
+        email: 'citizen1@civicpulse.demo',
+        passwordHash: citizenPassHash,
+        role: 'citizen'
+      });
+    }
+    let citizen2 = await User.findOne({ email: 'citizen2@civicpulse.demo' });
+    if (!citizen2) {
+      citizen2 = await User.create({
+        name: 'Priya Sharma',
+        email: 'citizen2@civicpulse.demo',
+        passwordHash: citizenPassHash,
+        role: 'citizen'
+      });
+    }
 
     const citizenIds = [citizen1._id, citizen2._id];
     const STATUSES = ['New', 'Acknowledged', 'In Progress', 'Resolved'];
     const SEVERITIES = ['low', 'medium', 'high'];
 
-    // Generate ~40 complaints
-    const complaints = [];
-    for (let i = 0; i < 40; i++) {
-      const category = randomElement(CATEGORIES);
-      const severity = randomElement(SEVERITIES);
-      const department = CATEGORY_TO_DEPARTMENT[category];
-      const status = randomElement(STATUSES);
-      const reportedDate = randomPastDate(21); // within last 3 weeks
-      const coords = randomPoint(CITY_CENTER_LAT, CITY_CENTER_LNG, 5);
-      const confirmations = randomInt(0, 5);
-      const upvotes = randomInt(0, 10);
-      const priorityScore = computePriorityScore(severity, confirmations, upvotes);
+    if (shouldReset) {
+      // Generate ~40 complaints for testing/demo reset
+      const complaints = [];
+      for (let i = 0; i < 40; i++) {
+        const category = randomElement(CATEGORIES);
+        const severity = randomElement(SEVERITIES);
+        const department = CATEGORY_TO_DEPARTMENT[category];
+        const status = randomElement(STATUSES);
+        const reportedDate = randomPastDate(21); // within last 3 weeks
+        const coords = randomPoint(CITY_CENTER_LAT, CITY_CENTER_LNG, 5);
+        const confirmations = randomInt(0, 5);
+        const upvotes = randomInt(0, 10);
+        const priorityScore = computePriorityScore(severity, confirmations, upvotes);
 
-      const complaintData = {
-        reporter: randomElement(citizenIds),
-        photoUrl: randomElement(SAMPLE_PHOTOS),
-        photoPublicId: `seed_${i}`,
-        pHash: randomHash(),
-        location: { type: 'Point', coordinates: coords },
-        category,
-        severity,
-        aiConfidence: Math.round(Math.random() * 40 + 60) / 100, // 0.60–1.00
-        description: getDescription(category),
-        department,
-        status,
-        timestamps: { reported: reportedDate },
-        confirmations,
-        upvotes,
-        priorityScore,
-        createdAt: reportedDate,
-        updatedAt: reportedDate
-      };
+        const complaintData = {
+          reporter: randomElement(citizenIds),
+          photoUrl: randomElement(SAMPLE_PHOTOS),
+          photoPublicId: `seed_${i}`,
+          pHash: randomHash(),
+          location: { type: 'Point', coordinates: coords },
+          category,
+          severity,
+          aiConfidence: Math.round(Math.random() * 40 + 60) / 100, // 0.60–1.00
+          description: getDescription(category),
+          department,
+          status,
+          timestamps: { reported: reportedDate },
+          confirmations,
+          upvotes,
+          priorityScore,
+          createdAt: reportedDate,
+          updatedAt: reportedDate
+        };
 
-      // Set status-specific timestamps and deadlines
-      if (status !== 'New') {
-        const ackDate = new Date(reportedDate);
-        ackDate.setHours(ackDate.getHours() + randomInt(1, 48));
-        complaintData.timestamps.acknowledged = ackDate;
-        complaintData.deadline = computeDeadline(category, severity, ackDate);
+        // Set status-specific timestamps and deadlines
+        if (status !== 'New') {
+          const ackDate = new Date(reportedDate);
+          ackDate.setHours(ackDate.getHours() + randomInt(1, 48));
+          complaintData.timestamps.acknowledged = ackDate;
+          complaintData.deadline = computeDeadline(category, severity, ackDate);
 
-        // Make some intentionally overdue
-        if (i % 7 === 0 && status !== 'Resolved') {
-          const oldAckDate = new Date();
-          oldAckDate.setDate(oldAckDate.getDate() - 20);
-          complaintData.timestamps.acknowledged = oldAckDate;
-          complaintData.deadline = computeDeadline(category, severity, oldAckDate);
+          // Make some intentionally overdue
+          if (i % 7 === 0 && status !== 'Resolved') {
+            const oldAckDate = new Date();
+            oldAckDate.setDate(oldAckDate.getDate() - 20);
+            complaintData.timestamps.acknowledged = oldAckDate;
+            complaintData.deadline = computeDeadline(category, severity, oldAckDate);
+          }
+
+          if (status === 'In Progress' || status === 'Resolved') {
+            const ipDate = new Date(complaintData.timestamps.acknowledged);
+            ipDate.setHours(ipDate.getHours() + randomInt(2, 72));
+            complaintData.timestamps.inProgress = ipDate;
+          }
+
+          if (status === 'Resolved') {
+            const resDate = new Date(complaintData.timestamps.inProgress);
+            resDate.setHours(resDate.getHours() + randomInt(4, 96));
+            complaintData.timestamps.resolved = resDate;
+            complaintData.resolutionNote = 'Issue has been addressed and resolved by the field team.';
+          }
         }
 
-        if (status === 'In Progress' || status === 'Resolved') {
-          const ipDate = new Date(complaintData.timestamps.acknowledged);
-          ipDate.setHours(ipDate.getHours() + randomInt(2, 72));
-          complaintData.timestamps.inProgress = ipDate;
+        // Generate confirmedBy array
+        if (confirmations > 0) {
+          complaintData.confirmedBy = citizenIds.slice(0, Math.min(confirmations, citizenIds.length));
         }
 
-        if (status === 'Resolved') {
-          const resDate = new Date(complaintData.timestamps.inProgress);
-          resDate.setHours(resDate.getHours() + randomInt(4, 96));
-          complaintData.timestamps.resolved = resDate;
-          complaintData.resolutionNote = 'Issue has been addressed and resolved by the field team.';
+        // Generate upvotedBy array
+        if (upvotes > 0) {
+          complaintData.upvotedBy = citizenIds.slice(0, Math.min(upvotes, citizenIds.length));
         }
+
+        complaints.push(complaintData);
       }
 
-      // Generate confirmedBy array
-      if (confirmations > 0) {
-        complaintData.confirmedBy = citizenIds.slice(0, Math.min(confirmations, citizenIds.length));
-      }
-
-      // Generate upvotedBy array
-      if (upvotes > 0) {
-        complaintData.upvotedBy = citizenIds.slice(0, Math.min(upvotes, citizenIds.length));
-      }
-
-      complaints.push(complaintData);
+      await Complaint.insertMany(complaints);
+      console.log(`\nCreated ${complaints.length} seeded complaints`);
+    } else {
+      console.log('\nSkipped synthetic complaint generation (pass --reset if you want to regenerate mock complaints)');
     }
 
-    await Complaint.insertMany(complaints);
-    console.log(`\nCreated ${complaints.length} seeded complaints`);
-
-    // Summary
-    const statusCounts = {};
-    complaints.forEach(c => {
-      statusCounts[c.status] = (statusCounts[c.status] || 0) + 1;
-    });
-    console.log('\nStatus distribution:', statusCounts);
-
-    const deptCounts = {};
-    complaints.forEach(c => {
-      deptCounts[c.department] = (deptCounts[c.department] || 0) + 1;
-    });
-    console.log('Department distribution:', deptCounts);
-
-    const overdueCount = complaints.filter(c =>
-      c.status !== 'Resolved' && c.deadline && c.deadline < new Date()
-    ).length;
-    console.log(`Overdue complaints: ${overdueCount}`);
+    const allComplaints = await Complaint.find();
+    console.log(`\nTotal complaints in database: ${allComplaints.length}`);
 
     console.log('\n✓ Seed complete!');
     process.exit(0);

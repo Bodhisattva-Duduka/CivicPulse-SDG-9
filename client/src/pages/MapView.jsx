@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { ArrowUp, Filter, List, Map as MapIcon, Loader } from 'lucide-react';
 import api from '../lib/api';
@@ -9,6 +10,22 @@ import { CATEGORY_LABELS, CATEGORIES, STATUSES, STATUS_COLORS } from '../lib/con
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
 import ComplaintCard from '../components/ComplaintCard';
+
+function AutoFitBounds({ items }) {
+  const map = useMap();
+  useEffect(() => {
+    if (items && items.length > 0) {
+      const validPoints = items
+        .map(c => c.location?.coordinates)
+        .filter(coords => Array.isArray(coords) && coords.length === 2);
+      if (validPoints.length > 0) {
+        const bounds = L.latLngBounds(validPoints.map(coords => [coords[1], coords[0]]));
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      }
+    }
+  }, [items, map]);
+  return null;
+}
 
 export default function MapViewPage() {
   const navigate = useNavigate();
@@ -72,6 +89,7 @@ export default function MapViewPage() {
         ) : view === 'map' ? (
           <MapContainer center={center} zoom={12} style={{ height:'100%', minHeight:'calc(100vh - 120px)', width:'100%' }}>
             <TileLayer attribution='&copy; OpenStreetMap &copy; CARTO' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+            <AutoFitBounds items={filtered} />
             {filtered.map(c => (
               <CircleMarker key={c._id} center={[c.location.coordinates[1], c.location.coordinates[0]]} radius={8} fillColor={STATUS_COLORS[c.status]||'#5B7DB1'} fillOpacity={0.95} stroke weight={2} color="#FFFFFF">
                 <Popup><div style={{ fontFamily:'var(--font-sans)', minWidth:'160px' }}>
