@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+/* CivicPulse Design System — §14 */
+@theme {
+  /* Palette */
+  --color-bg-page: #0B0B0D;
+  --color-bg-card: #151519;
+  --color-bg-elevated: #1C1C22;
+  --color-bg-input: #1A1A20;
+
+  --color-text-primary: #F2F1ED;
+  --color-text-muted: #8B8D93;
+  --color-text-dimmed: #5A5C63;
+
+  --color-accent: #FF5A1F;
+  --color-accent-hover: #E5501B;
+
+  --color-status-new: #5B7DB1;
+  --color-status-acknowledged: #E8A83C;
+  --color-status-inprogress: #3B82C4;
+  --color-status-resolved: #4E9F6B;
+  --color-status-overdue: #E5484D;
+
+  --color-severity-low: #4E9F6B;
+  --color-severity-medium: #E8A83C;
+  --color-severity-high: #E5484D;
+
+  --color-border: #2A2A32;
+  --color-border-subtle: #1F1F27;
+
+  /* Typography */
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Border Radius — sharp-ish per §14 */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+}
+
+/* Base styles */
+body {
+  background-color: var(--color-bg-page);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-page);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-dimmed);
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Links */
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* Leaflet overrides for dark theme */
+.leaflet-container {
+  background-color: var(--color-bg-card) !important;
+  border-radius: var(--radius-lg);
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: var(--color-bg-card) !important;
+  color: var(--color-text-primary) !important;
+  border-radius: var(--radius-md) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-popup-tip {
+  background-color: var(--color-bg-card) !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: var(--color-bg-card) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+.leaflet-control-attribution {
+  background-color: rgba(11, 11, 13, 0.8) !important;
+  color: var(--color-text-dimmed) !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-text-muted) !important;
+}
+
+/* Utility classes */
+.ticket-divider {
+  border-top: 2px dashed var(--color-border);
+  margin: 12px 0;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 90, 31, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 90, 31, 0); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "civicpulse",
+  "version": "1.0.0",
+  "description": "Crowdsourced civic-infrastructure reporting app",
+  "private": true,
+  "scripts": {
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build": "cd client && npm run build && rm -rf ../server/public && cp -r dist ../server/public",
+    "start": "cd server && node src/server.js",
+    "seed": "cd server && node src/scripts/seed.js",
+    "install:all": "cd client && npm install && cd ../server && npm install"
+  },
+  "dependencies": {
+    "all": "^0.0.0"
+  }
+}
